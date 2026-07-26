@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RP店舗用POSレジ</title>
+    <style>
+        :root {
+            --bg-color: #1a1a24;
+            --card-bg: #2b2d42;
+            --accent-color: #4ea8de;
+            --text-color: #ffffff;
+            --danger-color: #e63946;
+            --success-color: #38b000;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3d405b;
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: #3d405b;
+            color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .tab-btn.active { background: var(--accent-color); }
+
+        .login-box {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            text-align: center;
+        }
+
+        input, select {
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #4a4e69;
+            background: #111;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .product-card {
+            background: #3d405b;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .product-card:active { transform: scale(0.98); }
+
+        .product-img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 6px;
+            background: #222;
+        }
+
+        .product-name { font-weight: bold; margin: 8px 0 4px; }
+        .product-price { color: #4ea8de; font-size: 14px; }
+
+        .cart-box {
+            background: #111;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 18px;
+        }
+
+        .total-display {
+            font-size: 22px;
+            font-weight: bold;
+            text-align: right;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #fff;
+        }
+
+        .btn-success { background: var(--success-color); }
+        .btn-danger { background: var(--danger-color); margin-top: 8px; }
+        .btn-primary { background: var(--accent-color); }
+
+        .log-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            background: #111;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+
+        /* ローディングオーバーレイ */
+        #loading {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading">データ送信中...</div>
+
+<div class="app-container">
+
+    <!-- 1. ログインページ -->
+    <div id="page-login" class="page active">
+        <h2>🔒 従業員ログイン</h2>
+        <div class="login-box">
+            <label for="staff-select" style="text-align: left;">担当者を選択</label>
+            <select id="staff-select">
+                <option value="秋間つぐみ">秋間つぐみ</option>
+                <option value="玉城あめこ">玉城あめこ</option>
+                <option value="鬼灯ワド">鬼灯ワド</option>
+            </select>
+
+            <input type="password" id="staff-pin" placeholder="パスワード(PIN)を入力">
+            <button class="btn btn-primary" onclick="login()">ログイン</button>
+            <p id="login-error" style="color: var(--danger-color); display: none;">パスワードが違います</p>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div id="main-content" style="display: none;">
+        
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('register', event)">🛒 レジ</button>
+            <button class="tab-btn" onclick="switchTab('logs', event)">📋 販売ログ</button>
+            <button class="tab-btn" style="background: #e63946;" onclick="logout()">退出</button>
+        </div>
+
+        <!-- 2. レジ販売ページ -->
+        <div id="page-register" class="page active">
+            <div style="font-size: 12px; color: #aaa; margin-bottom: 10px;">
+                担当: <span id="current-user-display" style="color:#fff; font-weight:bold;">-</span>
+            </div>
+
+            <div class="product-grid">
+                <div class="product-card" onclick="addToCart('アクアマリン', 12000)">
+                    <img src="https://iili.io/CeSHCxV.png" alt="アクアマリン">
+                    <div class="product-name">アクアマリン</div>
+                    <div class="product-price">$12,000</div>
+                </div>
+                <div class="product-card" onclick="addToCart('サファイア', 14000)">
+                    <img src="https://iili.io/CeSHKRj.png" alt="サファイア">
+                    <div class="product-name">サファイア</div>
+                    <div class="product-price">$14,000</div>
+                </div>
+                <div class="product-card" onclick="addToCart('ラピスラズリ', 18000)">
+                    <img src="https://iili.io/CeSHnWB.png" alt="ラピスラズリ">
+                    <div class="product-name">ラピスラズリ</div>
+                    <div class="product-price">$18,000</div>
+                </div>
+                <div class="product-card" onclick="addToCart('アトマイザーBox', 110000)">
+                    <img src="https://iili.io/CeSHqDQ.png" alt="アトマイザーBox">
+                    <div class="product-name">アトマイザーBox</div>
+                    <div class="product-price">$110,000</div>
+                </div>
+            </div>
+
+            <div class="cart-box" id="cart-display">カートは空です</div>
+<div class="total-display" onclick="copyTotalAmount()" style="cursor: pointer; user-select: none;" title="クリックで金額をコピー">
+    合計: $<span id="total-price">0</span>
+    <span id="copy-toast" style="font-size: 12px; color: #70e000; margin-left: 10px; opacity: 0; transition: opacity 0.3s;">コピーしました！</span>
+</div>
+            <button class="btn btn-success" onclick="checkout()">会計完了・送信</button>
+            <button class="btn btn-danger" onclick="clearCart()">クリア</button>
+        </div>
+
+        <!-- 3. 販売ログページ -->
+        <div id="page-logs" class="page">
+            <h3>📜 アプリ内一時履歴</h3>
+            <ul class="log-list" id="log-list"></ul>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+// ★ ここにコピーしたGASのWebアプリURLを貼り付けてください ★
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwhTGvhWQjBa8jQPfcw0NE-8O_LtRWbGf5vYcNhj6vqAZ3CX0ElDPa0vpfWR00khlY/exec";
+
+    const ACCOUNTS = {
+        "秋間つぐみ": "1234",
+        "玉城あめこ": "5678",
+        "鬼灯ワド": "9999"
+    };
+
+    let currentUser = null;
+    let cart = []; // { name, price, quantity }
+    let totalPrice = 0;
+    let salesLogs = [];
+
+    function login() {
+        const staff = document.getElementById('staff-select').value;
+        const pin = document.getElementById('staff-pin').value;
+        const errorMsg = document.getElementById('login-error');
+
+        if (ACCOUNTS[staff] && ACCOUNTS[staff] === pin) {
+            currentUser = staff;
+            document.getElementById('current-user-display').innerText = currentUser;
+            document.getElementById('page-login').classList.remove('active');
+            document.getElementById('main-content').style.display = 'block';
+            document.getElementById('staff-pin').value = '';
+            errorMsg.style.display = 'none';
+        } else {
+            errorMsg.style.display = 'block';
+        }
+    }
+
+    function logout() {
+        currentUser = null;
+        document.getElementById('main-content').style.display = 'none';
+        document.getElementById('page-login').classList.add('active');
+        clearCart();
+    }
+
+    function switchTab(tabName, evt) {
+        document.querySelectorAll('#main-content .page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+        if (tabName === 'register') {
+            document.getElementById('page-register').classList.add('active');
+            evt.target.classList.add('active');
+        } else if (tabName === 'logs') {
+            document.getElementById('page-logs').classList.add('active');
+            evt.target.classList.add('active');
+            renderLogs();
+        }
+    }
+
+    // --- カート追加（すでにカートにある場合は+1する） ---
+    function addToCart(name, price) {
+        const existingItem = cart.find(item => item.name === name);
+        if (existingItem) {
+            existingItem.quantity += 1;
+        } else {
+            cart.push({ name, price, quantity: 1 });
+        }
+        updateCartDisplay();
+    }
+
+    // --- キーボード直接入力からの個数変更 ---
+    function updateQuantityFromInput(name, newQuantity) {
+        const qty = parseInt(newQuantity, 10);
+        
+        // 0以下または空文字の場合はカートから削除
+        if (isNaN(qty) || qty <= 0) {
+            cart = cart.filter(i => i.name !== name);
+        } else {
+            const item = cart.find(i => i.name === name);
+            if (item) {
+                item.quantity = qty;
+            }
+        }
+        updateCartDisplay();
+    }
+
+    // --- カートから特定商品を完全に削除 ---
+    function removeItem(name) {
+        cart = cart.filter(i => i.name !== name);
+        updateCartDisplay();
+    }
+
+    function clearCart() {
+        cart = [];
+        updateCartDisplay();
+    }
+
+    // --- カート画面更新（直接数値入力フォーム付き） ---
+// --- カート画面更新（大型化・押しやすく修正） ---
+    function updateCartDisplay() {
+        const cartBox = document.getElementById('cart-display');
+        const totalDisplay = document.getElementById('total-price');
+
+        if (cart.length === 0) {
+            cartBox.innerText = "カートは空です";
+            totalPrice = 0;
+        } else {
+            totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            cartBox.innerHTML = cart.map(item => `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #333;">
+                    <div>
+                        <strong style="font-size: 18px;">${item.name}</strong>
+                        <div style="font-size: 14px; color: #aaa;">($${item.price.toLocaleString()})</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap: 8px;">
+                        <span style="font-size: 16px;">個数:</span>
+                        <!-- 入力ボックスを大きく (幅:65px, パディング:8px, 文字:18px) -->
+                        <input type="number" 
+                               min="1" 
+                               value="${item.quantity}" 
+                               onchange="updateQuantityFromInput('${item.name}', this.value)"
+                               onkeyup="updateQuantityFromInput('${item.name}', this.value)"
+                               style="width: 65px; padding: 8px; text-align: center; border-radius: 6px; border: 1px solid #4a4e69; background: #000; color: #fff; font-size: 18px; font-weight: bold;">
+                        
+                        <!-- ✕ボタンを大きく (パディング:8px 12px, 文字:16px) -->
+                        <button onclick="removeItem('${item.name}')" 
+                                style="background:#e63946; color:#fff; border:none; border-radius:6px; padding: 8px 12px; font-size: 16px; font-weight: bold; cursor:pointer;">✕</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        totalDisplay.innerText = totalPrice.toLocaleString();
+    }
+
+    // --- 会計処理 ---
+    async function checkout() {
+        if (cart.length === 0) return alert("商品を選択してください");
+
+        const itemsSummary = cart.map(i => `${i.name} x ${i.quantity}`).join(', ');
+        const sendData = {
+            staff: currentUser,
+            items: itemsSummary,
+            total: totalPrice
+        };
+
+        document.getElementById('loading').style.display = 'flex';
+
+        try {
+            await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(sendData)
+            });
+
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            salesLogs.unshift({
+                time: timeStr,
+                staff: currentUser,
+                items: itemsSummary,
+                total: totalPrice
+            });
+
+            alert(`会計完了！\nスプレッドシートに記録されました。\n合計: $${totalPrice.toLocaleString()}`);
+            clearCart();
+
+        } catch (error) {
+            alert("スプレッドシートへの記録に失敗しました: " + error);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    function renderLogs() {
+        const logList = document.getElementById('log-list');
+        if (salesLogs.length === 0) {
+            logList.innerHTML = '<li style="text-align:center; color:#888;">ログはまだありません</li>';
+            return;
+        }
+
+        logList.innerHTML = salesLogs.map(log => `
+            <li class="log-item">
+                <div class="log-header">
+                    <span>🕒 ${log.time}</span>
+                    <span>👤 ${log.staff}</span>
+                </div>
+                <div><strong>${log.items}</strong></div>
+                <div style="text-align:right; color:#4ea8de; font-weight:bold;">$${log.total.toLocaleString()}</div>
+            </li>
+        `).join('');
+    }
+// --- 合計金額をクリップボードにコピー ---
+    function copyTotalAmount() {
+        if (totalPrice === 0) return;
+
+        // 数値のみ（例: 5000）をコピーしたい場合は totalPrice を指定
+        // $マーク付き（例: 5000）など用途に合わせて調整可能
+        const textToCopy = totalPrice.toString();
+
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            // 「コピーしました！」の文字を一時的に表示
+            const toast = document.getElementById('copy-toast');
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 1500);
+        }).catch(err => {
+            console.error('コピーに失敗しました:', err);
+        });
+    }
+</script>
+
+</body>
+</html>
